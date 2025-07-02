@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trợ lý Giải Toán Gemini</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Thư viện KaTeX để hiển thị công thức toán học -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" xintegrity="sha384-n8MVd4RsNIU07EWpWGbSbeHumDDV332a2I92oO7Y5TCNMBIPlcsL4adLpcqSzaWn" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" xintegrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" xintegrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+        }
+        .card {
+            background-color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            border: none;
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+        }
+        .btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        input[type="file"] {
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+        }
+        .result-card {
+            border-left: 4px solid;
+            padding-left: 1rem;
+            margin-top: 1rem;
+        }
+        .result-good { border-color: #22c55e; }
+        .result-medium { border-color: #f97316; }
+        .result-bad { border-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-4xl w-full space-y-8">
+        <div class="text-center">
+            <h1 class="text-4xl font-bold text-gray-800">Trợ lý Giải Toán Gemini</h1>
+        </div>
+
+        <!-- Bước 1: Phân tích đề bài -->
+        <div id="problemSection" class="card space-y-4">
+            <h2 class="text-xl font-bold text-gray-700">1. Tải lên & Phân tích Đề bài</h2>
+            <div>
+                <label for="problemImage" class="block mb-2 font-medium text-gray-700">Chọn ảnh đề bài:</label>
+                <input type="file" id="problemImage" accept="image/*" class="w-full">
+            </div>
+            <button id="analyzeBtn" class="btn btn-primary w-full">Phân tích Đề</button>
+            <div id="loader-analyze" class="loader hidden"></div>
+            <div id="problemDisplay" class="p-4 bg-gray-50 rounded-lg min-h-[100px] border">
+                <p class="text-gray-500">Nội dung đề bài sau khi phân tích sẽ hiện ở đây...</p>
+            </div>
+        </div>
+
+        <!-- Bước 2: Làm bài & Nộp bài -->
+        <div id="solutionSection" class="card space-y-4 hidden">
+            <h2 class="text-xl font-bold text-gray-700">2. Làm bài & Nộp bài</h2>
+            
+            <div>
+                <h3 class="font-semibold text-gray-800 mb-2">Đề bài của bạn:</h3>
+                <img id="problemImagePreview" src="" alt="Ảnh đề bài" class="rounded-lg border max-w-full h-auto mx-auto">
+            </div>
+
+            <div class="text-center p-4 bg-indigo-100 rounded-lg">
+                <p class="font-medium text-indigo-800">Thời gian làm bài:</p>
+                <div id="timer" class="text-4xl font-bold text-indigo-900">00:00:00</div>
+            </div>
+            <button id="startBtn" class="btn btn-primary w-full">Bắt đầu làm bài</button>
+            
+            <div class="mt-4">
+                <label for="solutionImage" class="block mb-2 font-medium text-gray-700">Chọn ảnh bài giải của bạn:</label>
+                <input type="file" id="solutionImage" accept="image/*" class="w-full" disabled>
+            </div>
+            <button id="gradeBtn" class="btn btn-primary w-full" disabled>Nộp bài & Chấm điểm</button>
+            <div id="loader-grade" class="loader hidden"></div>
+        </div>
+
+        <!-- Bước 3: Kết quả -->
+        <div id="resultSection" class="card hidden">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4 text-center">3. Kết quả Chấm bài</h2>
+            <div id="resultDisplay" class="space-y-4">
+                <!-- Kết quả sẽ được chèn vào đây bằng JavaScript -->
+            </div>
+            <button id="newProblemBtn" class="btn btn-secondary w-full mt-6">Làm bài mới</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Các biến và trạng thái của ứng dụng ---
+        const problemSection = document.getElementById('problemSection');
+        const problemImageInput = document.getElementById('problemImage');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const problemDisplay = document.getElementById('problemDisplay');
+        const loaderAnalyze = document.getElementById('loader-analyze');
+
+        const solutionSection = document.getElementById('solutionSection');
+        const problemImagePreview = document.getElementById('problemImagePreview');
+        const startBtn = document.getElementById('startBtn');
+        const timerDisplay = document.getElementById('timer');
+        const solutionImageInput = document.getElementById('solutionImage');
+        const gradeBtn = document.getElementById('gradeBtn');
+        const loaderGrade = document.getElementById('loader-grade');
+
+        const resultSection = document.getElementById('resultSection');
+        const resultDisplay = document.getElementById('resultDisplay');
+        const newProblemBtn = document.getElementById('newProblemBtn');
+
+        let analyzedProblemText = '';
+        let timerInterval;
+        let seconds = 0;
+
+        // --- Các hàm tiện ích ---
+
+        function fileToGenerativePart(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve({
+                    inlineData: { data: reader.result.split(',')[1], mimeType: file.type }
+                });
+                reader.onerror = err => reject(err);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function callGemini(prompt, imageParts) {
+            const apiKey = "AIzaSyA3d9HUCI3Cncg0HpYYxgsZCdFKD4-hiJI";
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const body = {
+                contents: [{ parts: [{ text: prompt }, ...imageParts] }],
+                generationConfig: { responseMimeType: "application/json" }
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Lỗi API: ${errorData.error.message}`);
+                }
+                const data = await response.json();
+                const jsonText = data.candidates[0].content.parts[0].text;
+                return JSON.parse(jsonText);
+            } catch (error) {
+                console.error('Lỗi khi gọi Gemini API:', error);
+                alert('Đã có lỗi xảy ra: ' + error.message);
+                return null;
+            }
+        }
+
+        function renderMath(element) {
+            if (window.renderMathInElement) {
+                renderMathInElement(element, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+        
+        // --- Logic xử lý sự kiện ---
+
+        // 1. Phân tích đề bài
+        analyzeBtn.addEventListener('click', async () => {
+            if (!problemImageInput.files[0]) {
+                alert('Vui lòng chọn ảnh đề bài!');
+                return;
+            }
+            
+            loaderAnalyze.classList.remove('hidden');
+            analyzeBtn.disabled = true;
+            problemDisplay.innerHTML = '<p class="text-gray-500">Đang phân tích, vui lòng chờ...</p>';
+
+            try {
+                const imagePart = await fileToGenerativePart(problemImageInput.files[0]);
+                const prompt = `Bạn là một trợ giảng toán học. Hãy phân tích hình ảnh đề bài này và thực hiện các yêu cầu sau:
+1. Trích xuất (OCR) toàn bộ nội dung văn bản của đề bài một cách chính xác. Sử dụng cú pháp LaTeX cho tất cả các ký hiệu và công thức toán học (ví dụ: bao quanh công thức nội tuyến bằng $, và công thức khối bằng $$).
+2. Trình bày kết quả dưới dạng một đối tượng JSON duy nhất có cấu trúc sau: {"problem_text": "nội dung đầy đủ của đề bài", "questions": ["Câu 1...", "Câu 2a...", "Câu 2b..."]}.`;
+
+                const result = await callGemini(prompt, [imagePart]);
+
+                if (result && result.problem_text) {
+                    analyzedProblemText = result.problem_text;
+                    let htmlContent = `<h4><strong>Nội dung đề bài:</strong></h4><p>${result.problem_text}</p>`;
+                    if (result.questions && result.questions.length > 0) {
+                        htmlContent += `<h4 class="mt-4"><strong>Các câu hỏi:</strong></h4><ul class="list-disc list-inside">`;
+                        result.questions.forEach(q => { htmlContent += `<li>${q}</li>`; });
+                        htmlContent += `</ul>`;
+                    }
+                    problemDisplay.innerHTML = htmlContent;
+                    renderMath(problemDisplay);
+                    
+                    // Chuyển sang Bước 2
+                    problemImagePreview.src = URL.createObjectURL(problemImageInput.files[0]);
+                    problemSection.classList.add('hidden');
+                    solutionSection.classList.remove('hidden');
+
+                } else {
+                    problemDisplay.innerHTML = '<p class="text-red-500">Không thể phân tích đề bài. Vui lòng thử lại với ảnh rõ nét hơn.</p>';
+                }
+            } catch (error) {
+                console.error(error);
+                problemDisplay.innerHTML = `<p class="text-red-500">Lỗi: ${error.message}</p>`;
+            } finally {
+                loaderAnalyze.classList.add('hidden');
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        // 2. Bắt đầu làm bài (đếm giờ)
+        startBtn.addEventListener('click', () => {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Đang làm bài...';
+            solutionImageInput.disabled = false;
+            gradeBtn.disabled = false;
+
+            seconds = 0;
+            timerInterval = setInterval(() => {
+                seconds++;
+                const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+                const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                timerDisplay.textContent = `${h}:${m}:${s}`;
+            }, 1000);
+        });
+
+        // 3. Nộp bài và chấm điểm
+        gradeBtn.addEventListener('click', async () => {
+            if (!solutionImageInput.files[0]) {
+                alert('Vui lòng chọn ảnh bài giải của bạn!');
+                return;
+            }
+            if (!analyzedProblemText) {
+                alert('Lỗi: Không tìm thấy đề bài đã phân tích. Vui lòng thực hiện lại Bước 1.');
+                return;
+            }
+
+            clearInterval(timerInterval);
+            loaderGrade.classList.remove('hidden');
+            gradeBtn.disabled = true;
+
+            try {
+                const solutionImagePart = await fileToGenerativePart(solutionImageInput.files[0]);
+                const prompt = `Bạn là một giáo viên toán THPT kinh nghiệm, chấm bài rất cẩn thận và công bằng.
+---
+**ĐỀ BÀI GỐC:**
+${analyzedProblemText}
+---
+**BÀI GIẢI CỦA HỌC SINH (trong hình ảnh đính kèm):**
+Hãy phân tích hình ảnh bài giải và thực hiện các nhiệm vụ sau:
+1.  Kiểm tra phương pháp, các bước tính toán và kết quả cuối cùng.
+2.  Đưa ra nhận xét chi tiết: chỉ ra chỗ đúng, lỗi sai (nếu có) và góp ý.
+3.  Chấm điểm theo thang điểm 10, có thể cho điểm chi tiết từng câu.
+4.  Trong phần nhận xét, hãy sử dụng cú pháp LaTeX cho tất cả các ký hiệu và công thức toán học (ví dụ: bao quanh công thức nội tuyến bằng $, và công thức khối bằng $$).
+5.  Trình bày kết quả dưới dạng một đối tượng JSON duy nhất có cấu trúc sau: { "overallScore": number, "feedback": "string", "details": [ { "question": "string", "score": number, "comment": "string" } ] }`;
+
+                const result = await callGemini(prompt, [solutionImagePart]);
+
+                if (result && result.overallScore !== undefined) {
+                    displayResults(result);
+                    // Chuyển sang Bước 3
+                    solutionSection.classList.add('hidden');
+                    resultSection.classList.remove('hidden');
+                } else {
+                    alert('Không thể chấm bài. Phản hồi từ API không đúng định dạng.');
+                    console.log('Phản hồi không hợp lệ từ API:', result);
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Lỗi khi chấm bài: ' + error.message);
+            } finally {
+                loaderGrade.classList.add('hidden');
+                gradeBtn.disabled = false;
+            }
+        });
+
+        // 4. Làm bài mới
+        newProblemBtn.addEventListener('click', () => {
+            // Ẩn bước 2 và 3, hiện bước 1
+            resultSection.classList.add('hidden');
+            solutionSection.classList.add('hidden');
+            problemSection.classList.remove('hidden');
+
+            // Reset các biến trạng thái
+            analyzedProblemText = '';
+            if (timerInterval) clearInterval(timerInterval);
+            seconds = 0;
+
+            // Reset giao diện về trạng thái ban đầu
+            problemImageInput.value = '';
+            solutionImageInput.value = '';
+            problemDisplay.innerHTML = '<p class="text-gray-500">Nội dung đề bài sau khi phân tích sẽ hiện ở đây...</p>';
+            resultDisplay.innerHTML = '';
+            timerDisplay.textContent = '00:00:00';
+            
+            // Reset trạng thái các nút và input ở bước 2
+            startBtn.disabled = false;
+            startBtn.textContent = 'Bắt đầu làm bài';
+            solutionImageInput.disabled = true;
+            gradeBtn.disabled = true;
+        });
+
+        // Hàm hiển thị kết quả chấm điểm
+        function displayResults(data) {
+            resultDisplay.innerHTML = ''; 
+
+            let scoreColorClass = data.overallScore >= 8.5 ? 'result-good' : (data.overallScore >= 6.5 ? 'result-medium' : 'result-bad');
+            let textColorClass = scoreColorClass.replace('result-', 'text-').replace('good', 'green-500').replace('medium', 'orange-500').replace('bad', 'red-500');
+
+            const scoreHTML = `
+                <div class="text-center">
+                    <p class="text-lg text-gray-600">Điểm tổng kết</p>
+                    <p class="text-6xl font-bold ${textColorClass}">${data.overallScore.toFixed(1)} / 10</p>
+                </div>`;
+            resultDisplay.insertAdjacentHTML('beforeend', scoreHTML);
+
+            const feedbackHTML = `
+                <div class="result-card ${scoreColorClass}">
+                    <h3 class="font-bold text-lg">Nhận xét chung của giáo viên Gemini:</h3>
+                    <p>${data.feedback}</p>
+                </div>`;
+            resultDisplay.insertAdjacentHTML('beforeend', feedbackHTML);
+            
+            if (data.details && data.details.length > 0) {
+                const detailsTitle = `<h3 class="font-bold text-lg mt-6">Chấm điểm chi tiết:</h3>`;
+                resultDisplay.insertAdjacentHTML('beforeend', detailsTitle);
+
+                data.details.forEach(item => {
+                    let itemColorClass = item.score >= 8.5 ? 'result-good' : (item.score >= 6.5 ? 'result-medium' : 'result-bad');
+                    let itemTextColorClass = itemColorClass.replace('result-', 'text-').replace('good', 'green-500').replace('medium', 'orange-500').replace('bad', 'red-500');
+                    const itemHTML = `
+                        <div class="result-card ${itemColorClass}">
+                            <div class="flex justify-between items-start">
+                                <h4 class="font-semibold">${item.question}</h4>
+                                <span class="font-bold text-lg ${itemTextColorClass}">${item.score.toFixed(1)}đ</span>
+                            </div>
+                            <p class="text-sm text-gray-700 mt-1">${item.comment}</p>
+                        </div>`;
+                    resultDisplay.insertAdjacentHTML('beforeend', itemHTML);
+                });
+            }
+            renderMath(resultDisplay);
+            resultSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
