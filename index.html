@@ -14,6 +14,10 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" xintegrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" xintegrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
 
+    <!-- Thư viện PDF.js để xử lý file PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+
     <style>
         body {
             font-family: 'Be Vietnam Pro', sans-serif;
@@ -94,8 +98,8 @@
         <div id="problemSection" class="card space-y-4">
             <h2 class="text-xl font-bold text-gray-700">1. Tải lên & Phân tích Đề bài</h2>
             <div>
-                <label for="problemImage" class="block mb-2 font-medium text-gray-700">Chọn ảnh đề bài:</label>
-                <input type="file" id="problemImage" accept="image/*" class="w-full">
+                <label for="problemInput" class="block mb-2 font-medium text-gray-700">Chọn ảnh hoặc file PDF đề bài:</label>
+                <input type="file" id="problemInput" accept="image/*,application/pdf" class="w-full">
             </div>
             <button id="analyzeBtn" class="btn btn-primary w-full">Phân tích Đề</button>
             <div id="loader-analyze" class="loader hidden"></div>
@@ -120,8 +124,8 @@
             <button id="startBtn" class="btn btn-primary w-full">Bắt đầu làm bài</button>
             
             <div class="mt-4">
-                <label for="solutionImage" class="block mb-2 font-medium text-gray-700">Chọn ảnh bài giải của bạn:</label>
-                <input type="file" id="solutionImage" accept="image/*" class="w-full" disabled>
+                <label for="solutionInput" class="block mb-2 font-medium text-gray-700">Chọn ảnh hoặc file PDF bài giải:</label>
+                <input type="file" id="solutionInput" accept="image/*,application/pdf" class="w-full" disabled>
             </div>
             <button id="gradeBtn" class="btn btn-primary w-full" disabled>Nộp bài & Chấm điểm</button>
             <div id="loader-grade" class="loader hidden"></div>
@@ -138,9 +142,12 @@
     </div>
 
     <script>
+        // Thiết lập worker cho PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+
         // --- Các biến và trạng thái của ứng dụng ---
         const problemSection = document.getElementById('problemSection');
-        const problemImageInput = document.getElementById('problemImage');
+        const problemInput = document.getElementById('problemInput');
         const analyzeBtn = document.getElementById('analyzeBtn');
         const problemDisplay = document.getElementById('problemDisplay');
         const loaderAnalyze = document.getElementById('loader-analyze');
@@ -149,7 +156,7 @@
         const problemImagePreview = document.getElementById('problemImagePreview');
         const startBtn = document.getElementById('startBtn');
         const timerDisplay = document.getElementById('timer');
-        const solutionImageInput = document.getElementById('solutionImage');
+        const solutionInput = document.getElementById('solutionInput');
         const gradeBtn = document.getElementById('gradeBtn');
         const loaderGrade = document.getElementById('loader-grade');
 
@@ -163,14 +170,48 @@
 
         // --- Các hàm tiện ích ---
 
-        function fileToGenerativePart(file) {
+        // Xử lý file ảnh
+        function processImageFile(file) {
+            const previewSrc = URL.createObjectURL(file);
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onloadend = () => resolve({
-                    inlineData: { data: reader.result.split(',')[1], mimeType: file.type }
-                });
+                reader.onloadend = () => {
+                    const generativePart = {
+                        inlineData: { data: reader.result.split(',')[1], mimeType: file.type }
+                    };
+                    resolve({ generativePart, previewSrc });
+                };
                 reader.onerror = err => reject(err);
                 reader.readAsDataURL(file);
+            });
+        }
+
+        // Xử lý file PDF
+        async function processPdfFile(file) {
+            const fileReader = new FileReader();
+            return new Promise((resolve, reject) => {
+                fileReader.onload = async function() {
+                    const typedarray = new Uint8Array(this.result);
+                    try {
+                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                        const page = await pdf.getPage(1); // Lấy trang đầu tiên
+                        const viewport = page.getViewport({ scale: 2.0 }); // Tăng scale để ảnh nét hơn
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+                        const dataUrl = canvas.toDataURL('image/jpeg');
+                        const generativePart = {
+                            inlineData: { data: dataUrl.split(',')[1], mimeType: 'image/jpeg' }
+                        };
+                        resolve({ generativePart, previewSrc: dataUrl });
+                    } catch (error) {
+                        console.error('Lỗi xử lý PDF:', error);
+                        reject(new Error('Không thể xử lý file PDF. File có thể bị lỗi hoặc được bảo vệ.'));
+                    }
+                };
+                fileReader.readAsArrayBuffer(file);
             });
         }
 
@@ -216,26 +257,37 @@
             }
         }
         
+        async function handleFileUpload(file) {
+            if (file.type.startsWith('image/')) {
+                return await processImageFile(file);
+            } else if (file.type === 'application/pdf') {
+                return await processPdfFile(file);
+            } else {
+                throw new Error('Định dạng file không được hỗ trợ. Vui lòng chọn file ảnh hoặc PDF.');
+            }
+        }
+        
         // --- Logic xử lý sự kiện ---
 
         // 1. Phân tích đề bài
         analyzeBtn.addEventListener('click', async () => {
-            if (!problemImageInput.files[0]) {
-                alert('Vui lòng chọn ảnh đề bài!');
+            const file = problemInput.files[0];
+            if (!file) {
+                alert('Vui lòng chọn file đề bài!');
                 return;
             }
             
             loaderAnalyze.classList.remove('hidden');
             analyzeBtn.disabled = true;
-            problemDisplay.innerHTML = '<p class="text-gray-500">Đang phân tích, vui lòng chờ...</p>';
+            problemDisplay.innerHTML = '<p class="text-gray-500">Đang xử lý file và phân tích, vui lòng chờ...</p>';
 
             try {
-                const imagePart = await fileToGenerativePart(problemImageInput.files[0]);
+                const { generativePart, previewSrc } = await handleFileUpload(file);
                 const prompt = `Bạn là một trợ giảng toán học. Hãy phân tích hình ảnh đề bài này và thực hiện các yêu cầu sau:
 1. Trích xuất (OCR) toàn bộ nội dung văn bản của đề bài một cách chính xác. Sử dụng cú pháp LaTeX cho tất cả các ký hiệu và công thức toán học (ví dụ: bao quanh công thức nội tuyến bằng $, và công thức khối bằng $$).
 2. Trình bày kết quả dưới dạng một đối tượng JSON duy nhất có cấu trúc sau: {"problem_text": "nội dung đầy đủ của đề bài", "questions": ["Câu 1...", "Câu 2a...", "Câu 2b..."]}.`;
 
-                const result = await callGemini(prompt, [imagePart]);
+                const result = await callGemini(prompt, [generativePart]);
 
                 if (result && result.problem_text) {
                     analyzedProblemText = result.problem_text;
@@ -248,13 +300,12 @@
                     problemDisplay.innerHTML = htmlContent;
                     renderMath(problemDisplay);
                     
-                    // Chuyển sang Bước 2
-                    problemImagePreview.src = URL.createObjectURL(problemImageInput.files[0]);
+                    problemImagePreview.src = previewSrc;
                     problemSection.classList.add('hidden');
                     solutionSection.classList.remove('hidden');
 
                 } else {
-                    problemDisplay.innerHTML = '<p class="text-red-500">Không thể phân tích đề bài. Vui lòng thử lại với ảnh rõ nét hơn.</p>';
+                    problemDisplay.innerHTML = '<p class="text-red-500">Không thể phân tích đề bài. Vui lòng thử lại với file rõ nét hơn.</p>';
                 }
             } catch (error) {
                 console.error(error);
@@ -269,7 +320,7 @@
         startBtn.addEventListener('click', () => {
             startBtn.disabled = true;
             startBtn.textContent = 'Đang làm bài...';
-            solutionImageInput.disabled = false;
+            solutionInput.disabled = false;
             gradeBtn.disabled = false;
 
             seconds = 0;
@@ -284,8 +335,9 @@
 
         // 3. Nộp bài và chấm điểm
         gradeBtn.addEventListener('click', async () => {
-            if (!solutionImageInput.files[0]) {
-                alert('Vui lòng chọn ảnh bài giải của bạn!');
+            const file = solutionInput.files[0];
+            if (!file) {
+                alert('Vui lòng chọn file bài giải của bạn!');
                 return;
             }
             if (!analyzedProblemText) {
@@ -298,7 +350,7 @@
             gradeBtn.disabled = true;
 
             try {
-                const solutionImagePart = await fileToGenerativePart(solutionImageInput.files[0]);
+                const { generativePart } = await handleFileUpload(file);
                 const prompt = `Bạn là một giáo viên toán THPT kinh nghiệm, chấm bài rất cẩn thận và công bằng.
 ---
 **ĐỀ BÀI GỐC:**
@@ -312,11 +364,10 @@ Hãy phân tích hình ảnh bài giải và thực hiện các nhiệm vụ sau
 4.  Trong phần nhận xét, hãy sử dụng cú pháp LaTeX cho tất cả các ký hiệu và công thức toán học (ví dụ: bao quanh công thức nội tuyến bằng $, và công thức khối bằng $$).
 5.  Trình bày kết quả dưới dạng một đối tượng JSON duy nhất có cấu trúc sau: { "overallScore": number, "feedback": "string", "details": [ { "question": "string", "score": number, "comment": "string" } ] }`;
 
-                const result = await callGemini(prompt, [solutionImagePart]);
+                const result = await callGemini(prompt, [generativePart]);
 
                 if (result && result.overallScore !== undefined) {
                     displayResults(result);
-                    // Chuyển sang Bước 3
                     solutionSection.classList.add('hidden');
                     resultSection.classList.remove('hidden');
                 } else {
@@ -334,27 +385,23 @@ Hãy phân tích hình ảnh bài giải và thực hiện các nhiệm vụ sau
 
         // 4. Làm bài mới
         newProblemBtn.addEventListener('click', () => {
-            // Ẩn bước 2 và 3, hiện bước 1
             resultSection.classList.add('hidden');
             solutionSection.classList.add('hidden');
             problemSection.classList.remove('hidden');
 
-            // Reset các biến trạng thái
             analyzedProblemText = '';
             if (timerInterval) clearInterval(timerInterval);
             seconds = 0;
 
-            // Reset giao diện về trạng thái ban đầu
-            problemImageInput.value = '';
-            solutionImageInput.value = '';
+            problemInput.value = '';
+            solutionInput.value = '';
             problemDisplay.innerHTML = '<p class="text-gray-500">Nội dung đề bài sau khi phân tích sẽ hiện ở đây...</p>';
             resultDisplay.innerHTML = '';
             timerDisplay.textContent = '00:00:00';
             
-            // Reset trạng thái các nút và input ở bước 2
             startBtn.disabled = false;
             startBtn.textContent = 'Bắt đầu làm bài';
-            solutionImageInput.disabled = true;
+            solutionInput.disabled = true;
             gradeBtn.disabled = true;
         });
 
